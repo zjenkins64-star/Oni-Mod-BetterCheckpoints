@@ -1,0 +1,145 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+	<PropertyGroup>
+		<TargetFramework>net48</TargetFramework>
+
+		<LangVersion>latest</LangVersion>
+		<Nullable>disable</Nullable>
+
+		<GenerateAssemblyInfo>false</GenerateAssemblyInfo>
+		<AssemblyName>BetterCheckpoints</AssemblyName>
+
+		<!-- Helps avoid weird dependency output issues -->
+		<CopyLocalLockFileAssemblies>true</CopyLocalLockFileAssemblies>
+
+		<!-- Optional but helpful for debugging -->
+		<DebugType>portable</DebugType>
+		<DebugSymbols>true</DebugSymbols>
+	</PropertyGroup>
+
+	<!-- ===========================================================
+	     Cross-platform path resolution.
+
+	     Override the auto-detected paths by setting either of these
+	     environment variables (or pass /p:ONIInstall=... on the CLI):
+
+	         ONI_INSTALL    root of the OxygenNotIncluded install
+	                        (the folder that contains OxygenNotIncluded_Data
+	                        on Windows, or OxygenNotIncluded.app on macOS)
+
+	         ONI_MODS_DIR   directory that contains your "Local" mods folder
+	                        (i.e. the parent of "BetterCheckpoints")
+	     =========================================================== -->
+	<PropertyGroup>
+		<ONIInstall Condition="'$(ONIInstall)' == '' AND '$(ONI_INSTALL)' != ''">$(ONI_INSTALL)</ONIInstall>
+
+		<!-- Windows fallbacks (most common Steam install locations) -->
+		<ONIInstall Condition="'$(ONIInstall)' == '' AND '$(OS)' == 'Windows_NT' AND Exists('D:\Games\SteamLibrary\steamapps\common\OxygenNotIncluded')">D:\Games\SteamLibrary\steamapps\common\OxygenNotIncluded</ONIInstall>
+		<ONIInstall Condition="'$(ONIInstall)' == '' AND '$(OS)' == 'Windows_NT' AND Exists('C:\Program Files (x86)\Steam\steamapps\common\OxygenNotIncluded')">C:\Program Files (x86)\Steam\steamapps\common\OxygenNotIncluded</ONIInstall>
+		<ONIInstall Condition="'$(ONIInstall)' == '' AND '$(OS)' == 'Windows_NT' AND Exists('C:\Program Files\Steam\steamapps\common\OxygenNotIncluded')">C:\Program Files\Steam\steamapps\common\OxygenNotIncluded</ONIInstall>
+
+		<!-- macOS Steam install -->
+		<ONIInstall Condition="'$(ONIInstall)' == '' AND '$(OS)' != 'Windows_NT' AND Exists('$(HOME)/Library/Application Support/Steam/steamapps/common/OxygenNotIncluded')">$(HOME)/Library/Application Support/Steam/steamapps/common/OxygenNotIncluded</ONIInstall>
+
+		<!-- Resolve the Managed/ folder. Layout differs between Windows and Mac. -->
+		<ONIManaged Condition="'$(OS)' == 'Windows_NT'">$(ONIInstall)\OxygenNotIncluded_Data\Managed</ONIManaged>
+		<ONIManaged Condition="'$(OS)' != 'Windows_NT'">$(ONIInstall)/OxygenNotIncluded.app/Contents/Resources/Data/Managed</ONIManaged>
+	</PropertyGroup>
+
+	<PropertyGroup>
+		<ONIModsDir Condition="'$(ONIModsDir)' == '' AND '$(ONI_MODS_DIR)' != ''">$(ONI_MODS_DIR)</ONIModsDir>
+
+		<!-- Windows: resolve the real Documents folder, which transparently handles
+		     OneDrive-redirected Documents (e.g. C:\Users\<user>\OneDrive\Documents). -->
+		<ONIModsDir Condition="'$(ONIModsDir)' == '' AND '$(OS)' == 'Windows_NT'">$([System.Environment]::GetFolderPath(SpecialFolder.MyDocuments))\Klei\OxygenNotIncluded\mods\Local</ONIModsDir>
+
+		<!-- macOS standard mods location -->
+		<ONIModsDir Condition="'$(ONIModsDir)' == '' AND '$(OS)' != 'Windows_NT'">$(HOME)/Library/Application Support/unity.Klei.Oxygen Not Included/mods/Local</ONIModsDir>
+
+		<ONIModInstallPath Condition="'$(OS)' == 'Windows_NT'">$(ONIModsDir)\BetterCheckpoints</ONIModInstallPath>
+		<ONIModInstallPath Condition="'$(OS)' != 'Windows_NT'">$(ONIModsDir)/BetterCheckpoints</ONIModInstallPath>
+	</PropertyGroup>
+
+	<!-- ===========================================================
+	     Post-build: install the mod into the local Klei mods folder.
+	     Skipped silently if the mods folder doesn't exist (e.g. on a
+	     machine without ONI installed, or in CI).
+	     =========================================================== -->
+	<Target Name="CopyToONIModFolder" AfterTargets="Build" Condition="'$(ONIModsDir)' != '' AND Exists('$(ONIModsDir)')">
+
+		<MakeDir Directories="$(ONIModInstallPath)" />
+
+		<Copy SourceFiles="$(TargetPath)"
+			  DestinationFolder="$(ONIModInstallPath)"
+			  SkipUnchangedFiles="true" />
+
+		<Copy SourceFiles="$(ProjectDir)mod_info.yaml"
+			  DestinationFolder="$(ONIModInstallPath)"
+			  SkipUnchangedFiles="true" />
+
+		<Copy SourceFiles="$(ProjectDir)mod.yaml"
+			  DestinationFolder="$(ONIModInstallPath)"
+			  SkipUnchangedFiles="true" />
+
+		<Copy SourceFiles="$(ProjectDir)changelog.txt"
+			  DestinationFolder="$(ONIModInstallPath)"
+			  SkipUnchangedFiles="true"
+			  Condition="Exists('$(ProjectDir)changelog.txt')" />
+
+		<!-- Copy custom kanim assets, preserving subfolder structure. -->
+		<ItemGroup>
+			<AnimAssets Include="$(ProjectDir)anim\**\*"
+			            Exclude="$(ProjectDir)anim\**\.dumped" />
+		</ItemGroup>
+		<Copy SourceFiles="@(AnimAssets)"
+			  DestinationFiles="@(AnimAssets->'$(ONIModInstallPath)\anim\%(RecursiveDir)%(Filename)%(Extension)')"
+			  SkipUnchangedFiles="true" />
+
+		<Message Importance="high" Text="Installed BetterCheckpoints to $(ONIModInstallPath)" />
+	</Target>
+
+	<!-- ===========================================================
+	     ONI references. <Private>false</Private> keeps these out of the
+	     build output - the game provides them at runtime, so we only
+	     need them at compile time.
+	     =========================================================== -->
+	<ItemGroup>
+
+		<Reference Include="0Harmony">
+			<HintPath>$(ONIManaged)\0Harmony.dll</HintPath>
+			<Private>false</Private>
+		</Reference>
+
+		<Reference Include="Assembly-CSharp">
+			<HintPath>$(ONIManaged)\Assembly-CSharp.dll</HintPath>
+			<Private>false</Private>
+		</Reference>
+
+		<Reference Include="Assembly-CSharp-firstpass">
+			<HintPath>$(ONIManaged)\Assembly-CSharp-firstpass.dll</HintPath>
+			<Private>false</Private>
+		</Reference>
+
+		<Reference Include="UnityEngine">
+			<HintPath>$(ONIManaged)\UnityEngine.dll</HintPath>
+			<Private>false</Private>
+		</Reference>
+
+		<Reference Include="UnityEngine.CoreModule">
+			<HintPath>$(ONIManaged)\UnityEngine.CoreModule.dll</HintPath>
+			<Private>false</Private>
+		</Reference>
+
+		<Reference Include="UnityEngine.PhysicsModule">
+			<HintPath>$(ONIManaged)\UnityEngine.PhysicsModule.dll</HintPath>
+			<Private>false</Private>
+		</Reference>
+
+		<Reference Include="UnityEngine.ImageConversionModule">
+			<HintPath>$(ONIManaged)\UnityEngine.ImageConversionModule.dll</HintPath>
+			<Private>false</Private>
+		</Reference>
+
+	</ItemGroup>
+
+</Project>

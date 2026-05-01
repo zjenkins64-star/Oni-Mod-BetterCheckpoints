@@ -1,0 +1,54 @@
+# KanimDumper extraction markers (machine-local, regenerated as needed)
+**/anim/**/.dumped
+
+# Build output
+[Bb]in/
+[Oo]bj/
+[Dd]ebug/
+[Rr]elease/
+x64/
+x86/
+build/
+bld/
+[Oo]ut/
+[Ll]og/
+[Ll]ogs/
+
+# Visual Studio
+.vs/
+*.suo
+*.user
+*.userosscache
+*.sln.docstates
+*.vssscc
+*.vspscc
+
+# ReSharper / Rider
+_ReSharper*/
+*.[Rr]e[Ss]harper
+*.DotSettings.user
+.idea/
+
+# NuGet
+*.nupkg
+*.snupkg
+project.lock.json
+*.nuget.props
+*.nuget.targets
+
+# Build artifacts
+*.pdb
+*.dll.config
+*.exe.config
+
+# OS / editor cruft
+*.log
+*.tmp
+*.bak
+*.swp
+*~
+Thumbs.db
+.DS_Store
+
+# Claude per-machine settings (keep .claude/ for shared config if added later)
+.claude/settings.local.json
