@@ -57,3 +57,6 @@ Thumbs.db
 # Per-session Claude handoff doc (working notes, not a project artifact)
 CLAUDE_HANDOFF.md
 **/CLAUDE_HANDOFF.md
+
+# Release zips live on the GitHub Releases page, not in the repo.
+dist/

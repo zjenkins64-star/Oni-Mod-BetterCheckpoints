@@ -32,7 +32,7 @@ Search for **Better Checkpoints** in the in-game Mods browser, or use the Steam 
 
 ### Manual install
 
-1. Download `BetterCheckpoints-v1.1.0.zip` from the [`dist/`](dist/) folder of this repo (or the [Releases page](https://github.com/zjenkins64-star/Oni-Mod-BetterCheckpoints/releases) once a release is cut).
+1. Download `BetterCheckpoints-vX.Y.Z.zip` from the [Releases page](https://github.com/zjenkins64-star/Oni-Mod-BetterCheckpoints/releases/latest).
 2. Extract the archive into your local mods folder so you end up with a `Local\BetterCheckpoints\` directory:
    - **Windows:** `%USERPROFILE%\Documents\Klei\OxygenNotIncluded\mods\Local\`
    - **Mac:** `~/Library/Application Support/unity.Klei.Oxygen Not Included/mods/Local/`
