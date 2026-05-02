@@ -20,11 +20,14 @@ namespace BetterCheckpoints
     [AddComponentMenu("KMonoBehaviour/scripts/CheckpointAccessControl")]
     public class CheckpointAccessControl : KMonoBehaviour
     {
-        // Defaults for Standard duplicants — checkpoint forces them to
-        // pass wearing a suit, mirroring vanilla atmo-suit-checkpoint
-        // behaviour. Per-dupe overrides flip this.
+        // Defaults for Standard duplicants — both true means equip on
+        // entry AND drop on exit are allowed, matching vanilla checkpoint
+        // behaviour. The side-screen UI starts in this "both allowed"
+        // state and the user can flip individual dupes into single-mode
+        // overrides as needed (WithSuit-only blocks unequip; WithoutSuit-
+        // only blocks equip).
         public const bool DefaultWithSuitAllowed = true;
-        public const bool DefaultWithoutSuitAllowed = false;
+        public const bool DefaultWithoutSuitAllowed = true;
 
         // Defaults for non-Standard duplicants (Bionic / Robots / future
         // models) — both false means the reactables block BOTH equip and
