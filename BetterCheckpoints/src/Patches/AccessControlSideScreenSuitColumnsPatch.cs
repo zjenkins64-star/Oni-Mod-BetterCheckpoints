@@ -261,13 +261,15 @@ namespace BetterCheckpoints.Patches
             GameObject withoutGo = null;
             GameObject restrictGo = null;
 
-            // ---- With Suit ----
-            // Default state for both With Suit and Without Suit is checked
-            // (= vanilla equip-on-entry + drop-on-exit). The user can:
-            //   - Click an unchecked box to enable that mode (other stays).
-            //   - Click a checked box to disable that mode, but only if
-            //     the OTHER is also checked (we never let both be off —
-            //     Restrict use is the way to fully block passage).
+            // ---- With Suit / Without Suit (strict mutex) ----
+            // Exactly one of these is checked at any time. Clicking an
+            // unchecked box checks it AND auto-unchecks the other.
+            // Clicking the already-checked box is a no-op (you can't
+            // turn off both — that's what Restrict use is for).
+            //
+            // The choice only controls the equip-on-entry transition.
+            // Drop-on-return happens regardless of which mode is
+            // selected (handled by the UnequipSuitReactable patch).
             var withCheck = new PCheckBox(WITH_NAME)
             {
                 Text = string.Empty,
@@ -275,30 +277,24 @@ namespace BetterCheckpoints.Patches
                 ToolTip = ModStrings.SideScreen.WITH_SUIT_TOOLTIP,
                 OnChecked = (source, state) =>
                 {
-                    bool currentlyChecked = state == PCheckBox.STATE_CHECKED;
-                    if (currentlyChecked)
+                    bool newValue = state != PCheckBox.STATE_CHECKED;
+                    if (!newValue)
                     {
-                        if (cac.GetWithoutSuitAllowed(id))
-                        {
-                            cac.SetWithSuitOverride(id, false);
-                            PCheckBox.SetCheckState(source, PCheckBox.STATE_UNCHECKED);
-                        }
-                        else
-                        {
-                            // Reject: would leave both off.
-                            PCheckBox.SetCheckState(source, PCheckBox.STATE_CHECKED);
-                        }
-                    }
-                    else
-                    {
-                        cac.SetWithSuitOverride(id, true);
+                        // Strict mutex: at least one must be checked.
                         PCheckBox.SetCheckState(source, PCheckBox.STATE_CHECKED);
+                        return;
+                    }
+                    cac.SetWithSuitOverride(id, true);
+                    PCheckBox.SetCheckState(source, PCheckBox.STATE_CHECKED);
+                    if (withoutGo != null)
+                    {
+                        cac.SetWithoutSuitOverride(id, false);
+                        PCheckBox.SetCheckState(withoutGo, PCheckBox.STATE_UNCHECKED);
                     }
                 },
             };
             withCheck.OnRealize += go => { withGo = go; go.name = WITH_NAME; ConstrainSize(go); };
 
-            // ---- Without Suit (symmetric to With Suit) ----
             var withoutCheck = new PCheckBox(WITHOUT_NAME)
             {
                 Text = string.Empty,
@@ -306,23 +302,18 @@ namespace BetterCheckpoints.Patches
                 ToolTip = ModStrings.SideScreen.WITHOUT_SUIT_TOOLTIP,
                 OnChecked = (source, state) =>
                 {
-                    bool currentlyChecked = state == PCheckBox.STATE_CHECKED;
-                    if (currentlyChecked)
+                    bool newValue = state != PCheckBox.STATE_CHECKED;
+                    if (!newValue)
                     {
-                        if (cac.GetWithSuitAllowed(id))
-                        {
-                            cac.SetWithoutSuitOverride(id, false);
-                            PCheckBox.SetCheckState(source, PCheckBox.STATE_UNCHECKED);
-                        }
-                        else
-                        {
-                            PCheckBox.SetCheckState(source, PCheckBox.STATE_CHECKED);
-                        }
-                    }
-                    else
-                    {
-                        cac.SetWithoutSuitOverride(id, true);
                         PCheckBox.SetCheckState(source, PCheckBox.STATE_CHECKED);
+                        return;
+                    }
+                    cac.SetWithoutSuitOverride(id, true);
+                    PCheckBox.SetCheckState(source, PCheckBox.STATE_CHECKED);
+                    if (withGo != null)
+                    {
+                        cac.SetWithSuitOverride(id, false);
+                        PCheckBox.SetCheckState(withGo, PCheckBox.STATE_UNCHECKED);
                     }
                 },
             };

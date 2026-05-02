@@ -87,11 +87,16 @@ namespace BetterCheckpoints.Patches
             var kpid = newReactor != null ? newReactor.GetComponent<KPrefabID>() : null;
             if (kpid == null) return;
             bool isStandard = newReactor.HasTag(GameTags.Minions.Models.Standard);
-            // Unequipping ends with the dupe bare — only allowed when
-            // "Without Suit" mode permits passing while bare. Non-
-            // Standard dupes default to no-suit-needed (allowed bare),
-            // so unequip is allowed for them.
-            if (!cac.GetWithoutSuitAllowed(kpid.InstanceID, isStandard))
+            // Standard duplicants always drop their suits at the dock on
+            // return, regardless of whether the side-screen is set to
+            // "With Suit" or "Without Suit" mode — vanilla checkpoint
+            // behaviour. The mode toggle only governs equip-on-entry.
+            //
+            // Non-Standard duplicants (bionic, robot) instead ignore the
+            // checkpoint entirely — they never equip and never drop, so
+            // a bionic wearing an atmo suit walking back through keeps
+            // it on.
+            if (!isStandard)
             {
                 __result = false;
             }

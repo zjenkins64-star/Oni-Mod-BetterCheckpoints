@@ -1,3 +1,8 @@
+v1.1.2
+- Standard duplicants now ALWAYS drop their suits at the dock on return, regardless of whether the side-screen is set to With Suit or Without Suit mode. The mode toggle now only controls whether they equip on entry.
+- Restored strict With Suit / Without Suit mutex (one or the other - never both checked, never neither). Default is With Suit. Use Restrict use to fully block a duplicant.
+- Non-Standard duplicants (Bionic, Robot) still ignore the checkpoint entirely - they never equip and never drop, so a bionic wearing an atmo suit walking back through keeps it on.
+
 v1.1.1
 - Fix: duplicants now drop their suits at the dock on return (vanilla checkpoint behavior). Default changed from "WithSuit only" (block unequip) to "both modes allowed" so equip-on-entry AND drop-on-exit happen unless overridden.
 - Fix: in-game Mods menu shows the actual mod version instead of 0.0.0.0. AssemblyVersion is now stamped into the built DLL.
