@@ -39,8 +39,9 @@
 		<ONIInstall Condition="'$(ONIInstall)' == '' AND '$(OS)' == 'Windows_NT' AND Exists('C:\Program Files (x86)\Steam\steamapps\common\OxygenNotIncluded')">C:\Program Files (x86)\Steam\steamapps\common\OxygenNotIncluded</ONIInstall>
 		<ONIInstall Condition="'$(ONIInstall)' == '' AND '$(OS)' == 'Windows_NT' AND Exists('C:\Program Files\Steam\steamapps\common\OxygenNotIncluded')">C:\Program Files\Steam\steamapps\common\OxygenNotIncluded</ONIInstall>
 
-		<!-- macOS Steam install -->
+		<!-- macOS Steam installs (default location plus a couple of common alts). -->
 		<ONIInstall Condition="'$(ONIInstall)' == '' AND '$(OS)' != 'Windows_NT' AND Exists('$(HOME)/Library/Application Support/Steam/steamapps/common/OxygenNotIncluded')">$(HOME)/Library/Application Support/Steam/steamapps/common/OxygenNotIncluded</ONIInstall>
+		<ONIInstall Condition="'$(ONIInstall)' == '' AND '$(OS)' != 'Windows_NT' AND Exists('/Applications/Steam/steamapps/common/OxygenNotIncluded')">/Applications/Steam/steamapps/common/OxygenNotIncluded</ONIInstall>
 
 		<!-- Resolve the Managed/ folder. Layout differs between Windows and Mac. -->
 		<ONIManaged Condition="'$(OS)' == 'Windows_NT'">$(ONIInstall)\OxygenNotIncluded_Data\Managed</ONIManaged>
@@ -60,6 +61,19 @@
 		<ONIModInstallPath Condition="'$(OS)' == 'Windows_NT'">$(ONIModsDir)\BetterCheckpoints</ONIModInstallPath>
 		<ONIModInstallPath Condition="'$(OS)' != 'Windows_NT'">$(ONIModsDir)/BetterCheckpoints</ONIModInstallPath>
 	</PropertyGroup>
+
+	<!-- ===========================================================
+	     Friendly error if neither auto-detection nor the ONI_INSTALL
+	     env var resolved to a valid Managed/ folder. Without this,
+	     the build fails with a cryptic "Assembly-CSharp.dll could not
+	     be found" when the user hasn't installed ONI in a default
+	     location.
+	     =========================================================== -->
+	<Target Name="ValidateONIInstall" BeforeTargets="ResolveAssemblyReferences">
+		<Error
+			Condition="'$(ONIManaged)' == '' OR !Exists('$(ONIManaged)/Assembly-CSharp.dll')"
+			Text="Couldn't locate Oxygen Not Included's Managed/ folder (looked in '$(ONIManaged)'). Set the ONI_INSTALL environment variable to your ONI install root (e.g. C:\Program Files (x86)\Steam\steamapps\common\OxygenNotIncluded on Windows, or ~/Library/Application Support/Steam/steamapps/common/OxygenNotIncluded on macOS), or pass /p:ONIInstall=&quot;...&quot; on the command line. See the comment block at the top of BetterCheckpoints.csproj for details." />
+	</Target>
 
 	<!-- ===========================================================
 	     NuGet packages: Harmony reference assembly, PLib, ILRepack.
@@ -181,13 +195,15 @@
 			  SkipUnchangedFiles="true"
 			  Condition="Exists('$(ProjectDir)changelog.txt')" />
 
-		<!-- Copy custom kanim assets, preserving subfolder structure. -->
+		<!-- Copy custom kanim assets, preserving subfolder structure.
+		     Forward slashes are intentional — MSBuild handles them on
+		     Windows and they're required on macOS. -->
 		<ItemGroup>
-			<AnimAssets Include="$(ProjectDir)anim\**\*"
-			            Exclude="$(ProjectDir)anim\**\.dumped" />
+			<AnimAssets Include="$(ProjectDir)anim/**/*"
+			            Exclude="$(ProjectDir)anim/**/.dumped" />
 		</ItemGroup>
 		<Copy SourceFiles="@(AnimAssets)"
-			  DestinationFiles="@(AnimAssets->'$(ONIModInstallPath)\anim\%(RecursiveDir)%(Filename)%(Extension)')"
+			  DestinationFiles="@(AnimAssets->'$(ONIModInstallPath)/anim/%(RecursiveDir)%(Filename)%(Extension)')"
 			  SkipUnchangedFiles="true" />
 
 		<Message Importance="high" Text="Installed BetterCheckpoints to $(ONIModInstallPath)" />
