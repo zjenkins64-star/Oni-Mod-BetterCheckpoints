@@ -52,3 +52,8 @@ Thumbs.db
 
 # Claude per-machine settings (keep .claude/ for shared config if added later)
 .claude/settings.local.json
+.claude/scheduled_tasks.lock
+
+# Per-session Claude handoff doc (working notes, not a project artifact)
+CLAUDE_HANDOFF.md
+**/CLAUDE_HANDOFF.md

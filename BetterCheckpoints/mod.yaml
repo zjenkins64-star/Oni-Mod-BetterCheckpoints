@@ -1,3 +1,2 @@
 title: Better Checkpoints
-description: Add per-duplicant access permissions to Atmo Suit Checkpoints and Oxygen Mask Checkpoints, with rules for suit/no-suit passage and directional control.
-author: Andrew Jenkins
+description: Adds per-duplicant access permissions to Atmo Suit and Oxygen Mask Checkpoints — pass-with-suit / pass-without-suit / restrict-passage toggles for each duplicant, in the same Access Permissions side screen as vanilla doors.

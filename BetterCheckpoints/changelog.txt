@@ -1,2 +1,14 @@
+v1.1.0
+- Per-duplicant access permissions on Atmo Suit and Oxygen Mask Checkpoints.
+- Three columns added to the vanilla Access Permissions side screen for each Standard duplicant:
+    * With Suit  - duplicant passes wearing a suit (mutually exclusive with Without Suit)
+    * Without Suit - duplicant passes without a suit
+    * Restrict use - duplicant is blocked from the checkpoint entirely
+- Direction permissions handled by vanilla AccessControl, with full pathfinder integration and automatic re-pathing on toggle.
+- Suit-state enforcement at the equip / unequip reactable, not the pathfinder, so dupes still walk past in their current state when a transition isn't allowed.
+- Bionic and Robot section headers are hidden on Atmo / Oxygen Mask Checkpoint side screens; non-Standard duplicants ignore those checkpoints entirely (no equip on entry, no drop on exit).
+- Lead Suit Checkpoints (and any other vanilla SuitMarker variant) keep fully unmodified vanilla behavior — the existing per-group direction toggles and equip / unequip reactables work as Klei designed them.
+- Vanilla-safe and save-safe. Compatible with vanilla and Spaced Out.
+
 v1.0.0
-- Initial release: per-duplicant access permissions for suit/mask checkpoints
+- Initial scaffold (per-checkpoint toggles, custom side screen). Superseded by 1.1.0.

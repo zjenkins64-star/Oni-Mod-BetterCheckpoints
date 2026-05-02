@@ -8,8 +8,9 @@
 
 		<GenerateAssemblyInfo>false</GenerateAssemblyInfo>
 		<AssemblyName>BetterCheckpoints</AssemblyName>
+		<RootNamespace>BetterCheckpoints</RootNamespace>
 
-		<!-- Helps avoid weird dependency output issues -->
+		<!-- Required for ILRepack to merge PLib into the mod assembly. -->
 		<CopyLocalLockFileAssemblies>true</CopyLocalLockFileAssemblies>
 
 		<!-- Optional but helpful for debugging -->
@@ -61,11 +62,105 @@
 	</PropertyGroup>
 
 	<!-- ===========================================================
+	     NuGet packages: Harmony reference assembly, PLib, ILRepack.
+	     PLib + ILRepack are PrivateAssets=all so ILRepack merges PLib
+	     into the mod DLL (Harmony stays as a reference assembly only —
+	     the game ships its own real 0Harmony.dll at runtime).
+	     =========================================================== -->
+	<ItemGroup>
+		<PackageReference Include="Lib.Harmony.Ref" Version="2.4.2" />
+		<PackageReference Include="PLib" Version="4.22.0.0">
+			<PrivateAssets>all</PrivateAssets>
+		</PackageReference>
+		<PackageReference Include="ILRepack.Lib.MSBuild.Task" Version="2.0.40">
+			<PrivateAssets>all</PrivateAssets>
+		</PackageReference>
+	</ItemGroup>
+
+	<!-- ===========================================================
+	     ONI references. <Private>false</Private> keeps these out of the
+	     build output - the game provides them at runtime, so we only
+	     need them at compile time.
+	     =========================================================== -->
+	<ItemGroup>
+
+		<Reference Include="Assembly-CSharp">
+			<HintPath>$(ONIManaged)\Assembly-CSharp.dll</HintPath>
+			<Private>false</Private>
+		</Reference>
+
+		<Reference Include="Assembly-CSharp-firstpass">
+			<HintPath>$(ONIManaged)\Assembly-CSharp-firstpass.dll</HintPath>
+			<Private>false</Private>
+		</Reference>
+
+		<Reference Include="UnityEngine">
+			<HintPath>$(ONIManaged)\UnityEngine.dll</HintPath>
+			<Private>false</Private>
+		</Reference>
+
+		<Reference Include="UnityEngine.CoreModule">
+			<HintPath>$(ONIManaged)\UnityEngine.CoreModule.dll</HintPath>
+			<Private>false</Private>
+		</Reference>
+
+		<Reference Include="UnityEngine.UI">
+			<HintPath>$(ONIManaged)\UnityEngine.UI.dll</HintPath>
+			<Private>false</Private>
+		</Reference>
+
+		<Reference Include="UnityEngine.TextRenderingModule">
+			<HintPath>$(ONIManaged)\UnityEngine.TextRenderingModule.dll</HintPath>
+			<Private>false</Private>
+		</Reference>
+
+		<Reference Include="UnityEngine.IMGUIModule">
+			<HintPath>$(ONIManaged)\UnityEngine.IMGUIModule.dll</HintPath>
+			<Private>false</Private>
+		</Reference>
+
+		<Reference Include="UnityEngine.PhysicsModule">
+			<HintPath>$(ONIManaged)\UnityEngine.PhysicsModule.dll</HintPath>
+			<Private>false</Private>
+		</Reference>
+
+		<Reference Include="UnityEngine.ImageConversionModule">
+			<HintPath>$(ONIManaged)\UnityEngine.ImageConversionModule.dll</HintPath>
+			<Private>false</Private>
+		</Reference>
+
+	</ItemGroup>
+
+	<!-- ===========================================================
+	     ILRepack: merge PLib into the output assembly so this mod
+	     does not collide with other mods bundling their own PLib.
+	     ILRepack.Lib.MSBuild.Task auto-runs after Build.
+	     =========================================================== -->
+	<Target Name="ILRepacker" AfterTargets="Build">
+		<ItemGroup>
+			<InputAssemblies Include="$(TargetPath)" />
+			<InputAssemblies Include="$(OutputPath)PLib.dll" Condition="Exists('$(OutputPath)PLib.dll')" />
+			<DoNotInternalizeAssemblies Include="BetterCheckpoints" />
+			<ILRepackLibraryPath Include="$(OutputPath)" />
+			<ILRepackLibraryPath Include="$(ONIManaged)" />
+		</ItemGroup>
+		<ILRepack
+			Parallel="true"
+			Internalize="true"
+			InternalizeExclude="@(DoNotInternalizeAssemblies)"
+			InputAssemblies="@(InputAssemblies)"
+			OutputFile="$(TargetPath)"
+			LibraryPath="@(ILRepackLibraryPath)"
+			Condition="Exists('$(OutputPath)PLib.dll')" />
+	</Target>
+
+	<!-- ===========================================================
 	     Post-build: install the mod into the local Klei mods folder.
 	     Skipped silently if the mods folder doesn't exist (e.g. on a
 	     machine without ONI installed, or in CI).
+	     Runs after ILRepack so the merged DLL is what gets copied.
 	     =========================================================== -->
-	<Target Name="CopyToONIModFolder" AfterTargets="Build" Condition="'$(ONIModsDir)' != '' AND Exists('$(ONIModsDir)')">
+	<Target Name="CopyToONIModFolder" AfterTargets="ILRepacker" Condition="'$(ONIModsDir)' != '' AND Exists('$(ONIModsDir)')">
 
 		<MakeDir Directories="$(ONIModInstallPath)" />
 
@@ -97,49 +192,5 @@
 
 		<Message Importance="high" Text="Installed BetterCheckpoints to $(ONIModInstallPath)" />
 	</Target>
-
-	<!-- ===========================================================
-	     ONI references. <Private>false</Private> keeps these out of the
-	     build output - the game provides them at runtime, so we only
-	     need them at compile time.
-	     =========================================================== -->
-	<ItemGroup>
-
-		<Reference Include="0Harmony">
-			<HintPath>$(ONIManaged)\0Harmony.dll</HintPath>
-			<Private>false</Private>
-		</Reference>
-
-		<Reference Include="Assembly-CSharp">
-			<HintPath>$(ONIManaged)\Assembly-CSharp.dll</HintPath>
-			<Private>false</Private>
-		</Reference>
-
-		<Reference Include="Assembly-CSharp-firstpass">
-			<HintPath>$(ONIManaged)\Assembly-CSharp-firstpass.dll</HintPath>
-			<Private>false</Private>
-		</Reference>
-
-		<Reference Include="UnityEngine">
-			<HintPath>$(ONIManaged)\UnityEngine.dll</HintPath>
-			<Private>false</Private>
-		</Reference>
-
-		<Reference Include="UnityEngine.CoreModule">
-			<HintPath>$(ONIManaged)\UnityEngine.CoreModule.dll</HintPath>
-			<Private>false</Private>
-		</Reference>
-
-		<Reference Include="UnityEngine.PhysicsModule">
-			<HintPath>$(ONIManaged)\UnityEngine.PhysicsModule.dll</HintPath>
-			<Private>false</Private>
-		</Reference>
-
-		<Reference Include="UnityEngine.ImageConversionModule">
-			<HintPath>$(ONIManaged)\UnityEngine.ImageConversionModule.dll</HintPath>
-			<Private>false</Private>
-		</Reference>
-
-	</ItemGroup>
 
 </Project>
