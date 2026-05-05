@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Reflection;
+using BetterCheckpoints.Options;
 using HarmonyLib;
 using PeterHan.PLib.UI;
 using UnityEngine;
@@ -91,25 +92,35 @@ namespace BetterCheckpoints.Patches
                 var rowGo = kv.Value;
                 if (rowGo == null || minion == null) continue;
                 var minionGo = minion.GetTargetGameObject();
-                bool isStandard = minionGo != null && minionGo.HasTag(GameTags.Minions.Models.Standard);
-                bool show = inject && isStandard;
+                // Treat Bionic dupes like Standard for UI purposes when
+                // the "Bionic Duplicants" mod option is set to Default
+                // (matches the reactable patches' UseStandardDefaults
+                // check).
+                bool useStandardDefaults = ModelHelpers.UseStandardDefaults(minionGo);
+                bool show = inject && useStandardDefaults;
                 ToggleVanillaWidgets(rowGo, hide: show);
                 EnsureRowCheckboxes(rowGo, show, ac, cac, minion);
             }
         }
 
-        // Hides the Bionic and Robots section headers when the target is
-        // a SuitMarker — those dupes can't wear atmo suits / oxygen masks
-        // and we treat them as "no suit needed" by default, so showing
-        // their sections is just clutter. Vanilla RefreshContainerObjects
-        // re-activates the headers on the next SetTarget for non-
-        // SuitMarker targets, so we don't need to restore manually.
+        // Hides the Bionic and Robot section headers when the target is
+        // a SuitMarker — those dupes are treated as "no suit needed" by
+        // default, so showing their sections is just clutter. The Bionic
+        // header is kept visible when "Bionic Duplicants" is set to
+        // Default in the mod options, since Bionic dupes are then
+        // treated like Standard and get their own configurable rows.
+        // Vanilla RefreshContainerObjects re-activates the headers on
+        // the next SetTarget for non-SuitMarker targets, so we don't
+        // need to restore manually.
         private static void HideNonStandardSections(AccessControlSideScreen ss, bool hide)
         {
             if (!hide) return;
 
-            var bionic = (GameObject)BionicHeaderField.GetValue(ss);
-            if (bionic != null && bionic.activeSelf) bionic.SetActive(false);
+            if (!BetterCheckpointsOptions.IsBionicsDefault)
+            {
+                var bionic = (GameObject)BionicHeaderField.GetValue(ss);
+                if (bionic != null && bionic.activeSelf) bionic.SetActive(false);
+            }
 
             var robot = (GameObject)RobotHeaderField.GetValue(ss);
             if (robot != null && robot.activeSelf) robot.SetActive(false);
@@ -261,26 +272,37 @@ namespace BetterCheckpoints.Patches
             GameObject withoutGo = null;
             GameObject restrictGo = null;
 
-            // ---- With Suit / Without Suit (strict mutex) ----
-            // Exactly one of these is checked at any time. Clicking an
-            // unchecked box checks it AND auto-unchecks the other.
-            // Clicking the already-checked box is a no-op (you can't
-            // turn off both — that's what Restrict use is for).
+            // 3-way mutex across all three columns: exactly one of
+            // {With Suit, Without Suit, Block} is checked at any time.
+            // Clicking an unchecked box selects it and unchecks the other
+            // two; clicking the already-checked box is a no-op.
             //
-            // The choice only controls the equip-on-entry transition.
-            // Drop-on-return happens regardless of which mode is
-            // selected (handled by the UnequipSuitReactable patch).
+            // - With / Without store on CheckpointAccessControl and gate
+            //   the equip-on-entry reactable. Drop-on-return is forced
+            //   regardless of which mode is selected (UnequipSuitReactable
+            //   patch).
+            // - Block stores on the vanilla AccessControl as
+            //   Permission.Neither so the pathfinder routes the dupe
+            //   away from the cell entirely.
+            //
+            // Switching off Block (by clicking With or Without) restores
+            // Permission.Both. Switching to Block clears both With and
+            // Without so the data model matches the UI exactly.
+            bool isRestricted = ac != null && ac.GetSetPermission(minion) == AccessControl.Permission.Neither;
+
             var withCheck = new PCheckBox(WITH_NAME)
             {
                 Text = string.Empty,
-                InitialState = cac.GetWithSuitAllowed(id) ? PCheckBox.STATE_CHECKED : PCheckBox.STATE_UNCHECKED,
+                InitialState = (!isRestricted && cac.GetWithSuitAllowed(id))
+                    ? PCheckBox.STATE_CHECKED
+                    : PCheckBox.STATE_UNCHECKED,
                 ToolTip = ModStrings.SideScreen.WITH_SUIT_TOOLTIP,
                 OnChecked = (source, state) =>
                 {
                     bool newValue = state != PCheckBox.STATE_CHECKED;
                     if (!newValue)
                     {
-                        // Strict mutex: at least one must be checked.
+                        // 3-way mutex: at least one must be checked.
                         PCheckBox.SetCheckState(source, PCheckBox.STATE_CHECKED);
                         return;
                     }
@@ -291,6 +313,11 @@ namespace BetterCheckpoints.Patches
                         cac.SetWithoutSuitOverride(id, false);
                         PCheckBox.SetCheckState(withoutGo, PCheckBox.STATE_UNCHECKED);
                     }
+                    if (restrictGo != null && ac != null)
+                    {
+                        ac.SetPermission(minion, AccessControl.Permission.Both);
+                        PCheckBox.SetCheckState(restrictGo, PCheckBox.STATE_UNCHECKED);
+                    }
                 },
             };
             withCheck.OnRealize += go => { withGo = go; go.name = WITH_NAME; ConstrainSize(go); };
@@ -298,7 +325,9 @@ namespace BetterCheckpoints.Patches
             var withoutCheck = new PCheckBox(WITHOUT_NAME)
             {
                 Text = string.Empty,
-                InitialState = cac.GetWithoutSuitAllowed(id) ? PCheckBox.STATE_CHECKED : PCheckBox.STATE_UNCHECKED,
+                InitialState = (!isRestricted && cac.GetWithoutSuitAllowed(id))
+                    ? PCheckBox.STATE_CHECKED
+                    : PCheckBox.STATE_UNCHECKED,
                 ToolTip = ModStrings.SideScreen.WITHOUT_SUIT_TOOLTIP,
                 OnChecked = (source, state) =>
                 {
@@ -315,12 +344,15 @@ namespace BetterCheckpoints.Patches
                         cac.SetWithSuitOverride(id, false);
                         PCheckBox.SetCheckState(withGo, PCheckBox.STATE_UNCHECKED);
                     }
+                    if (restrictGo != null && ac != null)
+                    {
+                        ac.SetPermission(minion, AccessControl.Permission.Both);
+                        PCheckBox.SetCheckState(restrictGo, PCheckBox.STATE_UNCHECKED);
+                    }
                 },
             };
             withoutCheck.OnRealize += go => { withoutGo = go; go.name = WITHOUT_NAME; ConstrainSize(go); };
 
-            // ---- Restrict use (independent; drives vanilla AccessControl) ----
-            bool isRestricted = ac != null && ac.GetSetPermission(minion) == AccessControl.Permission.Neither;
             var restrictCheck = new PCheckBox(RESTRICT_NAME)
             {
                 Text = string.Empty,
@@ -329,12 +361,26 @@ namespace BetterCheckpoints.Patches
                 OnChecked = (source, state) =>
                 {
                     bool newValue = state != PCheckBox.STATE_CHECKED;
-                    PCheckBox.SetCheckState(source, newValue ? PCheckBox.STATE_CHECKED : PCheckBox.STATE_UNCHECKED);
-                    if (ac == null) return;
-                    ac.SetPermission(minion,
-                        newValue
-                            ? AccessControl.Permission.Neither
-                            : AccessControl.Permission.Both);
+                    if (!newValue)
+                    {
+                        PCheckBox.SetCheckState(source, PCheckBox.STATE_CHECKED);
+                        return;
+                    }
+                    PCheckBox.SetCheckState(source, PCheckBox.STATE_CHECKED);
+                    if (ac != null)
+                    {
+                        ac.SetPermission(minion, AccessControl.Permission.Neither);
+                    }
+                    cac.SetWithSuitOverride(id, false);
+                    cac.SetWithoutSuitOverride(id, false);
+                    if (withGo != null)
+                    {
+                        PCheckBox.SetCheckState(withGo, PCheckBox.STATE_UNCHECKED);
+                    }
+                    if (withoutGo != null)
+                    {
+                        PCheckBox.SetCheckState(withoutGo, PCheckBox.STATE_UNCHECKED);
+                    }
                 },
             };
             restrictCheck.OnRealize += go => { restrictGo = go; go.name = RESTRICT_NAME; ConstrainSize(go); };

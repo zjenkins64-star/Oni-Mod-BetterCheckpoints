@@ -1,3 +1,9 @@
+v1.2.0
+- New: in-game options menu (Mods → Better Checkpoints → Options).
+- New: "Bionic Duplicants" dropdown (Default / Bypass). Default treats Bionic dupes like Standard at Atmo / Oxygen Mask checkpoints — they appear in the per-checkpoint side screen, equip on entry, and drop on return. Bypass keeps the pre-1.2 behaviour (ignore checkpoint entirely). New default: Default.
+- Side screen: Block now participates in a 3-way mutex with With Suit / Without Suit. Exactly one column is checked per dupe at all times; switching columns auto-clears the others.
+- Compatibility: changing the dropdown auto-restarts ONI on save. This sidesteps a known crash in Ony's Mod Manager (NRE in `Ony.OxygenNotIncluded.ModManager.ModVisualBuilder.SortButtons`) whose mod-list refresh coroutine holds stale GameObject references after any options dialog save. The auto-restart preempts the coroutine before it can tick.
+
 v1.1.2
 - Standard duplicants now ALWAYS drop their suits at the dock on return, regardless of whether the side-screen is set to With Suit or Without Suit mode. The mode toggle now only controls whether they equip on entry.
 - Restored strict With Suit / Without Suit mutex (one or the other - never both checked, never neither). Default is With Suit. Use Restrict use to fully block a duplicant.

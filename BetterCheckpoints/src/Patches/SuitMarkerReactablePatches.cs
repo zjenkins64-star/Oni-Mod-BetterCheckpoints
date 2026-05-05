@@ -1,5 +1,6 @@
 using System;
 using System.Reflection;
+using BetterCheckpoints.Options;
 using HarmonyLib;
 using UnityEngine;
 
@@ -57,12 +58,15 @@ namespace BetterCheckpoints.Patches
             if (cac == null) return;
             var kpid = newReactor != null ? newReactor.GetComponent<KPrefabID>() : null;
             if (kpid == null) return;
-            bool isStandard = newReactor.HasTag(GameTags.Minions.Models.Standard);
+            bool useStandardDefaults = ModelHelpers.UseStandardDefaults(newReactor);
             // Equipping ends with the dupe wearing a suit — only allowed
             // when "With Suit" mode permits passing while suited. Non-
-            // Standard dupes (bionic / robots) default to no-suit-needed,
-            // so equip is always blocked for them.
-            if (!cac.GetWithSuitAllowed(kpid.InstanceID, isStandard))
+            // Standard dupes default to no-suit-needed, so equip is
+            // blocked for them by the hardcoded false default. When the
+            // "Bionic Duplicants" mod option is set to Default, Bionic
+            // dupes count as standard for default purposes and equip on
+            // entry too.
+            if (!cac.GetWithSuitAllowed(kpid.InstanceID, useStandardDefaults))
             {
                 __result = false;
             }
@@ -86,20 +90,40 @@ namespace BetterCheckpoints.Patches
             if (cac == null) return;
             var kpid = newReactor != null ? newReactor.GetComponent<KPrefabID>() : null;
             if (kpid == null) return;
-            bool isStandard = newReactor.HasTag(GameTags.Minions.Models.Standard);
+            bool useStandardDefaults = ModelHelpers.UseStandardDefaults(newReactor);
             // Standard duplicants always drop their suits at the dock on
             // return, regardless of whether the side-screen is set to
             // "With Suit" or "Without Suit" mode — vanilla checkpoint
             // behaviour. The mode toggle only governs equip-on-entry.
             //
-            // Non-Standard duplicants (bionic, robot) instead ignore the
+            // Non-standard-default duplicants (robots, plus Bionics when
+            // "Bionic Duplicants" is set to Bypass) instead ignore the
             // checkpoint entirely — they never equip and never drop, so
             // a bionic wearing an atmo suit walking back through keeps
             // it on.
-            if (!isStandard)
+            if (!useStandardDefaults)
             {
                 __result = false;
             }
+        }
+    }
+
+    // Centralised "should this dupe be treated like a Standard dupe at
+    // customised checkpoints?" check, consulting the BionicHandling mod
+    // option for Bionic dupes. Used by the reactable patches and the
+    // side-screen patch so they stay in sync.
+    internal static class ModelHelpers
+    {
+        public static bool UseStandardDefaults(GameObject dupe)
+        {
+            if (dupe == null) return false;
+            if (dupe.HasTag(GameTags.Minions.Models.Standard)) return true;
+            if (dupe.HasTag(GameTags.Minions.Models.Bionic) &&
+                BetterCheckpointsOptions.IsBionicsDefault)
+            {
+                return true;
+            }
+            return false;
         }
     }
 }

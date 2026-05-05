@@ -13,7 +13,7 @@
 		     ONI's mod manager shows the right version in the Mods menu
 		     (otherwise it reads 0.0.0.0 from the DLL). Keep in sync with
 		     mod_info.yaml's `version:` field. -->
-		<Version>1.1.2</Version>
+		<Version>1.2.0</Version>
 
 		<!-- Required for ILRepack to merge PLib into the mod assembly. -->
 		<CopyLocalLockFileAssemblies>true</CopyLocalLockFileAssemblies>

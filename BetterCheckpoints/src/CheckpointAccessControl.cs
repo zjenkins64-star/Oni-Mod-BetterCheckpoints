@@ -43,16 +43,22 @@ namespace BetterCheckpoints
 
         public static readonly int OnRulesChangedHash = Hash.SDBMLower("BetterCheckpoints.OnRulesChanged");
 
-        public bool GetWithSuitAllowed(int minionInstanceID, bool isStandard = true)
+        // useStandardDefaults: caller-computed flag for which set of
+        // hardcoded defaults to fall back to when no per-dupe override
+        // exists. Standard dupes always pass true. Bionic dupes pass true
+        // only when the "Bionic Duplicants" mod option is set to Default
+        // (the option is consulted at the call sites, not here, so this
+        // component stays UI-/option-agnostic).
+        public bool GetWithSuitAllowed(int minionInstanceID, bool useStandardDefaults = true)
         {
             if (TryGetOverride(withSuitOverrides, minionInstanceID, out bool v)) return v;
-            return isStandard ? DefaultWithSuitAllowed : NonStandardDefaultWithSuitAllowed;
+            return useStandardDefaults ? DefaultWithSuitAllowed : NonStandardDefaultWithSuitAllowed;
         }
 
-        public bool GetWithoutSuitAllowed(int minionInstanceID, bool isStandard = true)
+        public bool GetWithoutSuitAllowed(int minionInstanceID, bool useStandardDefaults = true)
         {
             if (TryGetOverride(withoutSuitOverrides, minionInstanceID, out bool v)) return v;
-            return isStandard ? DefaultWithoutSuitAllowed : NonStandardDefaultWithoutSuitAllowed;
+            return useStandardDefaults ? DefaultWithoutSuitAllowed : NonStandardDefaultWithoutSuitAllowed;
         }
 
         public void SetWithSuitOverride(int minionInstanceID, bool value)

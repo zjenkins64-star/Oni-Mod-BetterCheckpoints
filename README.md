@@ -14,7 +14,14 @@ For each Standard duplicant, the side screen on an Atmo Suit or Oxygen Mask Chec
 
 Direction permissions, the dupe list, portraits, and group sections come straight from vanilla — nothing is rewritten.
 
-The **Bionic** and **Robot** section headers are hidden on these checkpoints; non-Standard duplicants ignore atmo / oxygen-mask checkpoints by default (no suit equip on entry, no drop on exit), so they walk past in whatever state they're in.
+The **Robot** section header is hidden on these checkpoints; robots ignore atmo / oxygen-mask checkpoints by default and walk past in whatever state they're in.
+
+The **Bionic** section is configurable via the in-game options menu (**Mods → Better Checkpoints → Options**):
+
+| Setting | Behaviour |
+| --- | --- |
+| **Default** *(default since v1.2)* | Bionic dupes behave like Standard — they appear in the side screen, equip on entry, and drop on return. |
+| **Bypass** | Bionic dupes ignore the checkpoint entirely (pre-1.2 behaviour). The Bionic section is hidden. |
 
 **Lead Suit Checkpoints** (and any other vanilla `SuitMarker` variant) keep fully unmodified vanilla behaviour — Bionic header still visible, equip-on-entry / drop-on-exit reactables fire normally.
 
@@ -23,6 +30,12 @@ The **Bionic** and **Robot** section headers are hidden on these checkpoints; no
 - Vanilla and Spaced Out (DLC1).
 - Save-safe — works on existing saves; no new game required.
 - DLC3 (Bionic Booster Pack) and other DLCs: should work; non-Standard duplicants are handled explicitly.
+
+### Known mod conflict: Ony's Mod Manager
+
+Saving the **Better Checkpoints** options dialog with **Ony's Mod Manager** active can trigger a `NullReferenceException` in `Ony.OxygenNotIncluded.ModManager.ModVisualBuilder.SortButtons` — Ony's mod-list refresh coroutine retains a destroyed `GameObject` reference. To work around this, Better Checkpoints **automatically restarts ONI** as soon as you change the Bionic Duplicants dropdown and click OK; the restart preempts Ony's coroutine before it can NRE. The dialog shows an inline notice explaining this.
+
+The underlying bug is in Ony's mod, not in PLib or Better Checkpoints — please report to that mod's author if you encounter it elsewhere.
 
 ## Installation
 
