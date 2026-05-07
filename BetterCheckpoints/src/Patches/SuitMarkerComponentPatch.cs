@@ -1,58 +1,74 @@
-using System.Collections.Generic;
 using HarmonyLib;
+using UnityEngine;
 
 namespace BetterCheckpoints.Patches
 {
-    // Attaches our per-dupe permission components to every SuitMarker on
-    // spawn (works on existing saves too).
+    // Attaches our per-dupe permission components to SuitMarker building
+    // prefabs at config time, NOT in OnSpawn. This is critical for save
+    // persistence:
     //
-    //   - Vanilla AccessControl is attached to ALL SuitMarker checkpoints
-    //     (atmo, oxygen mask, lead suit, etc.) so the vanilla side screen
-    //     with direction permissions and group sections shows up.
+    //   ONI's load sequence instantiates a building from its prefab,
+    //   then runs KSerialization to populate [Serialize] fields on
+    //   components present on the new instance, then fires OnSpawn.
+    //   Components added in an OnSpawn postfix arrive after the
+    //   deserialization pass — they exist for the runtime session but
+    //   are born with default state every load, dropping any saved
+    //   per-dupe overrides on the floor.
     //
-    //   - CheckpointAccessControl is attached ONLY to the suit-types we
-    //     specifically customise (atmo + oxygen mask). For other suit
-    //     checkpoints (lead suit, future bionic-suit variants, etc.) we
-    //     intentionally don't attach it, which means our injection /
-    //     reactable patches no-op for those buildings and the user gets
-    //     full vanilla behaviour: every dupe model that wears that suit
-    //     equips on entry, drops on exit. The Bionic / Robot section
-    //     headers stay visible because we only hide them for SuitMarkers
-    //     that have CheckpointAccessControl.
-    [HarmonyPatch(typeof(SuitMarker), "OnSpawn")]
-    internal static class SuitMarker_OnSpawn_AttachAccessControl
+    //   Patching DoPostConfigureComplete on each *MarkerConfig adds the
+    //   components to the PREFAB itself, so every cloned instance has
+    //   them from creation, well before KSerialization runs. Save data
+    //   for AccessControl (vanilla) and CheckpointAccessControl (this
+    //   mod) now finds a target component to deserialize into.
+    //
+    //   - SuitMarker (atmo) and OxygenMaskMarker get BOTH AccessControl
+    //     (direction permissions) and CheckpointAccessControl (per-dupe
+    //     With Suit / Without Suit overrides).
+    //   - LeadSuit and JetSuit get AccessControl ONLY — vanilla side
+    //     screen with full direction + group sections, our injection
+    //     and reactable patches no-op (no CheckpointAccessControl).
+    //
+    //   Vanilla SuitMarker has no AccessControl on the prefab; we add
+    //   it to bring per-group / per-dupe direction permissions to all
+    //   variants.
+    internal static class SuitMarkerAttachment
     {
-        // Locker tags on the SuitMarker that identify the checkpoint
-        // types we customise. From SuitMarkerConfig / OxygenMaskMarkerConfig
-        // in the decompiled source.
-        private static readonly HashSet<string> CustomisedLockerTags = new HashSet<string>
+        public static void Attach(GameObject go, bool withCheckpointAccessControl)
         {
-            "SuitLocker",
-            "OxygenMaskLocker",
-        };
-
-        private static void Postfix(SuitMarker __instance)
-        {
-            var go = __instance.gameObject;
-
             var ac = go.AddOrGet<AccessControl>();
             ac.controlEnabled = true;
-
-            if (IsCustomisedCheckpoint(__instance))
+            if (withCheckpointAccessControl)
             {
                 go.AddOrGet<CheckpointAccessControl>();
             }
         }
+    }
 
-        private static bool IsCustomisedCheckpoint(SuitMarker marker)
-        {
-            var tags = marker?.LockerTags;
-            if (tags == null || tags.Length == 0) return false;
-            for (int i = 0; i < tags.Length; i++)
-            {
-                if (CustomisedLockerTags.Contains(tags[i].Name)) return true;
-            }
-            return false;
-        }
+    [HarmonyPatch(typeof(SuitMarkerConfig), nameof(SuitMarkerConfig.DoPostConfigureComplete))]
+    internal static class SuitMarkerConfig_DoPostConfigureComplete_Patch
+    {
+        private static void Postfix(GameObject go) =>
+            SuitMarkerAttachment.Attach(go, withCheckpointAccessControl: true);
+    }
+
+    [HarmonyPatch(typeof(OxygenMaskMarkerConfig), nameof(OxygenMaskMarkerConfig.DoPostConfigureComplete))]
+    internal static class OxygenMaskMarkerConfig_DoPostConfigureComplete_Patch
+    {
+        private static void Postfix(GameObject go) =>
+            SuitMarkerAttachment.Attach(go, withCheckpointAccessControl: true);
+    }
+
+    [HarmonyPatch(typeof(LeadSuitMarkerConfig), nameof(LeadSuitMarkerConfig.DoPostConfigureComplete))]
+    internal static class LeadSuitMarkerConfig_DoPostConfigureComplete_Patch
+    {
+        private static void Postfix(GameObject go) =>
+            SuitMarkerAttachment.Attach(go, withCheckpointAccessControl: false);
+    }
+
+    [HarmonyPatch(typeof(JetSuitMarkerConfig), nameof(JetSuitMarkerConfig.DoPostConfigureComplete))]
+    internal static class JetSuitMarkerConfig_DoPostConfigureComplete_Patch
+    {
+        private static void Postfix(GameObject go) =>
+            SuitMarkerAttachment.Attach(go, withCheckpointAccessControl: false);
     }
 }

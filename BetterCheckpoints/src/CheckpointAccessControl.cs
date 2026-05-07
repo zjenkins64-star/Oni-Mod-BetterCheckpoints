@@ -8,9 +8,21 @@ namespace BetterCheckpoints
     // "Without Suit"). Direction permissions are handled by the vanilla
     // AccessControl component attached alongside this one.
     //
+    // Storage uses Dictionary<int, bool> keyed by KPrefabID.InstanceID,
+    // matching vanilla AccessControl.permissions's shape — KSerialization
+    // handles dictionaries of primitive key/value natively but does not
+    // round-trip List<KeyValuePair<,>> reliably (the v1.2.0 shape, which
+    // is why overrides were silently dropped on load).
+    //
+    // Field names were renamed `*OverridesByMinionId` so KSerialization
+    // ignores any v1.2.0 save data tagged with the old List names rather
+    // than attempting a type-mismatched deserialization. v1.2.0 overrides
+    // are lost on upgrade, but they were never persisting anyway, so no
+    // real data loss.
+    //
     // The defaults are hardcoded — every checkpoint starts in "With Suit
     // only" mode. Per-dupe overrides cascade onto these. The UI enforces
-    // strict mutex (always exactly one of With/Without checked per dupe);
+    // a 3-way mutex (exactly one of With/Without/Block checked per dupe);
     // the data model still uses two booleans because per-dupe overrides
     // are stored sparsely.
     //
@@ -38,8 +50,8 @@ namespace BetterCheckpoints
         public const bool NonStandardDefaultWithSuitAllowed = false;
         public const bool NonStandardDefaultWithoutSuitAllowed = false;
 
-        [Serialize] private List<KeyValuePair<int, bool>> withSuitOverrides = new List<KeyValuePair<int, bool>>();
-        [Serialize] private List<KeyValuePair<int, bool>> withoutSuitOverrides = new List<KeyValuePair<int, bool>>();
+        [Serialize] private Dictionary<int, bool> withSuitOverridesByMinionId = new Dictionary<int, bool>();
+        [Serialize] private Dictionary<int, bool> withoutSuitOverridesByMinionId = new Dictionary<int, bool>();
 
         public static readonly int OnRulesChangedHash = Hash.SDBMLower("BetterCheckpoints.OnRulesChanged");
 
@@ -51,69 +63,41 @@ namespace BetterCheckpoints
         // component stays UI-/option-agnostic).
         public bool GetWithSuitAllowed(int minionInstanceID, bool useStandardDefaults = true)
         {
-            if (TryGetOverride(withSuitOverrides, minionInstanceID, out bool v)) return v;
+            if (withSuitOverridesByMinionId.TryGetValue(minionInstanceID, out bool v)) return v;
             return useStandardDefaults ? DefaultWithSuitAllowed : NonStandardDefaultWithSuitAllowed;
         }
 
         public bool GetWithoutSuitAllowed(int minionInstanceID, bool useStandardDefaults = true)
         {
-            if (TryGetOverride(withoutSuitOverrides, minionInstanceID, out bool v)) return v;
+            if (withoutSuitOverridesByMinionId.TryGetValue(minionInstanceID, out bool v)) return v;
             return useStandardDefaults ? DefaultWithoutSuitAllowed : NonStandardDefaultWithoutSuitAllowed;
         }
 
         public void SetWithSuitOverride(int minionInstanceID, bool value)
         {
-            SetOverride(withSuitOverrides, minionInstanceID, value);
+            withSuitOverridesByMinionId[minionInstanceID] = value;
             NotifyChanged();
         }
 
         public void SetWithoutSuitOverride(int minionInstanceID, bool value)
         {
-            SetOverride(withoutSuitOverrides, minionInstanceID, value);
+            withoutSuitOverridesByMinionId[minionInstanceID] = value;
             NotifyChanged();
         }
 
         public void ClearWithSuitOverride(int minionInstanceID)
         {
-            if (RemoveOverride(withSuitOverrides, minionInstanceID)) NotifyChanged();
+            if (withSuitOverridesByMinionId.Remove(minionInstanceID)) NotifyChanged();
         }
 
         public void ClearWithoutSuitOverride(int minionInstanceID)
         {
-            if (RemoveOverride(withoutSuitOverrides, minionInstanceID)) NotifyChanged();
+            if (withoutSuitOverridesByMinionId.Remove(minionInstanceID)) NotifyChanged();
         }
 
         private void NotifyChanged()
         {
             Trigger(OnRulesChangedHash, this);
-        }
-
-        private static bool TryGetOverride(List<KeyValuePair<int, bool>> list, int id, out bool value)
-        {
-            for (int i = 0; i < list.Count; i++)
-            {
-                if (list[i].Key == id) { value = list[i].Value; return true; }
-            }
-            value = default;
-            return false;
-        }
-
-        private static void SetOverride(List<KeyValuePair<int, bool>> list, int id, bool value)
-        {
-            for (int i = 0; i < list.Count; i++)
-            {
-                if (list[i].Key == id) { list[i] = new KeyValuePair<int, bool>(id, value); return; }
-            }
-            list.Add(new KeyValuePair<int, bool>(id, value));
-        }
-
-        private static bool RemoveOverride(List<KeyValuePair<int, bool>> list, int id)
-        {
-            for (int i = 0; i < list.Count; i++)
-            {
-                if (list[i].Key == id) { list.RemoveAt(i); return true; }
-            }
-            return false;
         }
     }
 }

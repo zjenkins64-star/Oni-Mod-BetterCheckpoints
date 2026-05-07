@@ -1,3 +1,8 @@
+v1.2.1
+- Fix: per-duplicant With Suit / Without Suit / Block selections now persist across save and load. Two underlying issues:
+    * Storage was List<KeyValuePair<int, bool>>, which KSerialization doesn't round-trip. Replaced with Dictionary<int, bool> (matches vanilla AccessControl's pattern). Fields renamed so v1.2.0 saves don't attempt a type-mismatched deserialization — old v1.2.0 per-dupe overrides are not preserved on upgrade, but they weren't actually persisting before either, so no real data loss.
+    * AccessControl and CheckpointAccessControl were attached in a SuitMarker.OnSpawn postfix, which runs AFTER ONI's KSerialization pass. Components were always born with default state on load, dropping any saved data on the floor. Attachment moved to DoPostConfigureComplete patches on each *MarkerConfig (atmo, oxygen mask, lead suit, jet suit), so the components are part of the prefab and present when KSerialization runs.
+
 v1.2.0
 - New: in-game options menu (Mods → Better Checkpoints → Options).
 - New: "Bionic Duplicants" dropdown (Default / Bypass). Default treats Bionic dupes like Standard at Atmo / Oxygen Mask checkpoints — they appear in the per-checkpoint side screen, equip on entry, and drop on return. Bypass keeps the pre-1.2 behaviour (ignore checkpoint entirely). New default: Default.
