@@ -13,7 +13,13 @@ namespace BetterCheckpoints
                 + "in the per-checkpoint side screen, equip a suit on entry, "
                 + "and drop it on return.\n\n"
                 + "Bypass: ignore the checkpoint entirely — they walk through "
-                + "unchanged and don't appear in the side screen.\n\n"
+                + "unchanged and don't appear in the side screen. Their "
+                + "vanilla auto-drop-empty-suit chore is also suppressed at "
+                + "customised checkpoints, so a Bionic in an atmo suit keeps "
+                + "the suit on.\n\n"
+                + "⚠ A Bypass Bionic in an empty atmo suit with no breathable "
+                + "air route can suffocate — ensure they have an oxygen pocket "
+                + "or unsuit them manually before swapping modes mid-game.\n\n"
                 + "⚠ Changing this value will restart Oxygen Not Included.";
         }
 

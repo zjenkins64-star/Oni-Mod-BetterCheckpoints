@@ -1,3 +1,9 @@
+v1.2.2
+- Fix: Bionic duplicants set to Bypass no longer dock and unequip their atmo / oxygen-mask suits at customised checkpoints when the suit runs low on O2. Vanilla's "return suit when low / idle" chore (SuitLocker.ReturnSuitWorkable) targets the SuitLocker building directly, bypassing the SuitMarker reactables we patch, which is why Bypass appeared to leak after the recent DLC retuning. A new precondition is added to both the urgent and idle return-suit chores, gating each candidate dupe against the locker's paired SuitMarker.
+- Fix: per-dupe Block on the side screen now also gates the SuitLocker buildings behind the checkpoint, not just the marker cell. Previously a Blocked dupe could still walk around to the dock side and drop their suit, sometimes getting stuck on the ground if the rack was occupied.
+- Safety: Bionics in Bypass keep their atmo suit on indefinitely. If the suit empties with no breathable-air route, they can suffocate — the option dropdown tooltip warns about this and recommends an oxygen pocket or manual unsuit before flipping the mode mid-game.
+- Lead Suit and Jet Suit checkpoints are unaffected (no CheckpointAccessControl, precondition is a no-op).
+
 v1.2.1
 - Fix: per-duplicant With Suit / Without Suit / Block selections now persist across save and load. Two underlying issues:
     * Storage was List<KeyValuePair<int, bool>>, which KSerialization doesn't round-trip. Replaced with Dictionary<int, bool> (matches vanilla AccessControl's pattern). Fields renamed so v1.2.0 saves don't attempt a type-mismatched deserialization — old v1.2.0 per-dupe overrides are not preserved on upgrade, but they weren't actually persisting before either, so no real data loss.
