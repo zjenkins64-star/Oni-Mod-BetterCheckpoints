@@ -6,21 +6,16 @@ using UnityEngine;
 
 namespace BetterCheckpoints.Patches
 {
-    // Per-dupe enforcement of the With Suit / Without Suit mode at the
-    // checkpoint, applied at the equip/unequip reactable level (not in the
-    // pathfinder). When a dupe is denied a transition here they walk past
-    // unchanged: a bare dupe stays bare, a suited dupe stays suited.
+    // Per-dupe enforcement of the With Suit / Without Suit / Block mode
+    // at the checkpoint, applied at the equip/unequip reactable level.
+    // When a dupe is denied a transition here they walk past unchanged:
+    // a bare dupe stays bare, a suited dupe stays suited.
     //
-    // We deliberately do NOT block the pathfinder via Grid.HasSuit /
-    // Grid.HasEmptyLocker. Doing so makes the SuitMarker cell appear
-    // entirely impassable to the affected dupe, even when no transition
-    // is needed (e.g. a bare dupe walking through to a breathable
-    // destination), which is too aggressive. The mod controls only what
-    // happens *at* the checkpoint, not whether the path through it is
-    // valid — atmospheric survival is the player's responsibility.
-    //
-    // Direction permissions (left/right) remain path-time enforced via the
-    // vanilla AccessControl component we attach alongside this one.
+    // Pathfinder-level blocking for Block is handled by vanilla
+    // AccessControl on the marker plus our LockerRestrictions mirror
+    // onto adjacent locker cells. Direction permissions (left/right)
+    // remain path-time enforced via the vanilla AccessControl component
+    // we attach alongside this one.
     internal static class ReactableReflection
     {
         public static readonly Type EquipType =
@@ -91,19 +86,37 @@ namespace BetterCheckpoints.Patches
             var kpid = newReactor != null ? newReactor.GetComponent<KPrefabID>() : null;
             if (kpid == null) return;
             bool useStandardDefaults = ModelHelpers.UseStandardDefaults(newReactor);
-            // Standard duplicants always drop their suits at the dock on
-            // return, regardless of whether the side-screen is set to
-            // "With Suit" or "Without Suit" mode — vanilla checkpoint
-            // behaviour. The mode toggle only governs equip-on-entry.
-            //
-            // Non-standard-default duplicants (robots, plus Bionics when
-            // "Bionic Duplicants" is set to Bypass) instead ignore the
+            // Standard duplicants normally drop their suits at the dock
+            // on return — vanilla checkpoint behaviour. Non-standard-
+            // default duplicants (robots, plus Bionics when "Bionic
+            // Duplicants" is set to Bypass) instead ignore the
             // checkpoint entirely — they never equip and never drop, so
-            // a bionic wearing an atmo suit walking back through keeps
+            // a Bionic wearing an atmo suit walking back through keeps
             // it on.
             if (!useStandardDefaults)
             {
                 __result = false;
+                return;
+            }
+
+            // Per-dupe Block must also reject the unequip. Without this
+            // check, a Block-set Standard dupe wearing a suit would drop
+            // it at the dock when they path back — leaving the suit in
+            // the locker (or on the ground if the rack is full) before
+            // walking away. The pathfinder gate from vanilla AC + our
+            // LockerRestrictions normally prevents the dupe from
+            // reaching the marker in the first place, but if they're
+            // already past it (e.g., the mode was just changed) this
+            // ensures they keep the suit on instead of dropping it.
+            var ac = marker.GetComponent<AccessControl>();
+            if (ac != null)
+            {
+                var proxy = newReactor.GetComponent<MinionIdentity>()?.assignableProxy?.Get();
+                if (proxy != null &&
+                    ac.GetSetPermission(proxy) == AccessControl.Permission.Neither)
+                {
+                    __result = false;
+                }
             }
         }
     }

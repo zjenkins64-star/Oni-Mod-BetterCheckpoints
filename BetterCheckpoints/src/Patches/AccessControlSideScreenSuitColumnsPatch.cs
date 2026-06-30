@@ -103,25 +103,19 @@ namespace BetterCheckpoints.Patches
             }
         }
 
-        // Hides the Bionic and Robot section headers when the target is
-        // a SuitMarker — those dupes are treated as "no suit needed" by
-        // default, so showing their sections is just clutter. The Bionic
-        // header is kept visible when "Bionic Duplicants" is set to
-        // Default in the mod options, since Bionic dupes are then
-        // treated like Standard and get their own configurable rows.
-        // Vanilla RefreshContainerObjects re-activates the headers on
-        // the next SetTarget for non-SuitMarker targets, so we don't
-        // need to restore manually.
+        // Hides the Robot section header when the target is a customised
+        // checkpoint (robots truly never equip suits, so the section is
+        // always pointless). The Bionic section is left visible in both
+        // Default and Bypass modes — in Default it's configurable,
+        // and in Bypass our reactable/chore patches make per-dupe clicks
+        // on Bionics no-ops behaviorally. Earlier attempts to also hide
+        // Bionic in Bypass kept losing the race against vanilla's
+        // RefreshContainerObjects re-activation (sections popped up on
+        // arrow clicks and wouldn't re-hide), so we accept the visible
+        // section as the tradeoff for a stable UI.
         private static void HideNonStandardSections(AccessControlSideScreen ss, bool hide)
         {
             if (!hide) return;
-
-            if (!BetterCheckpointsOptions.IsBionicsDefault)
-            {
-                var bionic = (GameObject)BionicHeaderField.GetValue(ss);
-                if (bionic != null && bionic.activeSelf) bionic.SetActive(false);
-            }
-
             var robot = (GameObject)RobotHeaderField.GetValue(ss);
             if (robot != null && robot.activeSelf) robot.SetActive(false);
         }
@@ -371,8 +365,14 @@ namespace BetterCheckpoints.Patches
                     {
                         ac.SetPermission(minion, AccessControl.Permission.Neither);
                     }
-                    cac.SetWithSuitOverride(id, false);
-                    cac.SetWithoutSuitOverride(id, false);
+                    // CLEAR (not set false) so when vanilla's "Custom
+                    // Access" → "Default Access" toggle later removes
+                    // the AC entry, cac falls back to defaults and the
+                    // mutex invariant (exactly one of W/W/B checked) is
+                    // preserved. Setting false here would leave all
+                    // three boxes unchecked after Custom Access toggle.
+                    cac.ClearWithSuitOverride(id);
+                    cac.ClearWithoutSuitOverride(id);
                     if (withGo != null)
                     {
                         PCheckBox.SetCheckState(withGo, PCheckBox.STATE_UNCHECKED);
@@ -443,6 +443,40 @@ namespace BetterCheckpoints.Patches
             if (t == null) return;
             t.name = name + DEAD_SUFFIX;
             UnityEngine.Object.Destroy(t.gameObject);
+        }
+    }
+
+    // Vanilla's RefreshContainerObjects re-activates section headers on
+    // group-arrow clicks (see AccessControlSideScreen ~line 196-198).
+    // We postfix it to re-hide the Robot section for customised
+    // checkpoints — robots never equip suits, so the section is pure
+    // clutter. (We intentionally don't re-hide Bionic here either; see
+    // the comment on HideNonStandardSections above for the reason.)
+    [HarmonyPatch(typeof(AccessControlSideScreen), "RefreshContainerObjects")]
+    internal static class AccessControlSideScreen_RefreshContainerObjects_HideRobot_Patch
+    {
+        private static readonly FieldInfo TargetField =
+            AccessTools.Field(typeof(AccessControlSideScreen), "target");
+        private static readonly FieldInfo RobotHeaderField =
+            AccessTools.Field(typeof(AccessControlSideScreen), "robotSectionHeader");
+
+        private static void Postfix(AccessControlSideScreen __instance)
+        {
+            try
+            {
+                var ac = TargetField.GetValue(__instance) as AccessControl;
+                if (ac == null) return;
+                var marker = ac.GetComponent<SuitMarker>();
+                if (marker == null) return;
+                if (marker.GetComponent<CheckpointAccessControl>() == null) return;
+
+                var robot = RobotHeaderField.GetValue(__instance) as GameObject;
+                if (robot != null && robot.activeSelf) robot.SetActive(false);
+            }
+            catch (Exception ex)
+            {
+                Debug.LogError("[BetterCheckpoints] RefreshContainerObjects hide-robot failed: " + ex);
+            }
         }
     }
 }

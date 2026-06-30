@@ -18,25 +18,12 @@ namespace BetterCheckpoints.Patches
     //   CreateChore() — an urgent one (suit empty / low on O2) and an
     //   idle one (dupe wearing a suit while idle). Both target the
     //   SuitLocker building directly, not the SuitMarker cell, so they
-    //   bypass the existing checkpoint reactable patches entirely. A
-    //   dupe approaching from the locker side just walks up to the
-    //   rack, drops the suit, and walks away without ever crossing the
-    //   marker.
+    //   bypass the existing checkpoint reactable patches entirely.
     //
-    //   We hook CreateChore() with a postfix that appends a Better
-    //   Checkpoints precondition to both chores. The precondition
-    //   resolves the locker's owning SuitMarker (via a static map we
-    //   maintain on SetSuitMarker), checks whether that marker is one
-    //   of our customised variants (has CheckpointAccessControl), and
-    //   then short-circuits the chore for Bypass-Bionic and Block-set
-    //   dupes.
-    //
-    // Safety note:
-    //   Suppressing this chore means a Bypass-Bionic with an empty atmo
-    //   suit and no air route can suffocate, since the vanilla
-    //   emergency drop path no longer fires. The dropdown tooltip in
-    //   the options dialog warns about this. Per-dupe Block has the
-    //   same downstream consequence but is explicit player intent.
+    //   The SetSuitMarker postfix also mirrors the marker's AccessControl
+    //   onto the locker's Grid cells via LockerRestrictions, so a Blocked
+    //   dupe can't even pathfind through the locker cell to reach the
+    //   far side of the checkpoint.
     [HarmonyPatch]
     internal static class SuitLocker_SetSuitMarker_Patch
     {
@@ -54,6 +41,19 @@ namespace BetterCheckpoints.Patches
             return LockerToMarker.TryGetValue(locker, out var marker) ? marker : null;
         }
 
+        // Enumerate every locker currently paired with the given marker.
+        // Used by the side-screen click handlers to propagate per-dupe
+        // permission changes from the marker to the locker cells.
+        public static void GetLockersForMarker(SuitMarker marker, List<SuitLocker> outLockers)
+        {
+            outLockers.Clear();
+            if (marker == null) return;
+            foreach (var kv in LockerToMarker)
+            {
+                if (kv.Value == marker) outLockers.Add(kv.Key);
+            }
+        }
+
         [HarmonyPatch(typeof(SuitLocker), nameof(SuitLocker.SetSuitMarker))]
         [HarmonyPostfix]
         private static void SetSuitMarker_Postfix(SuitLocker __instance, SuitMarker suit_marker)
@@ -61,20 +61,31 @@ namespace BetterCheckpoints.Patches
             if (suit_marker == null)
             {
                 LockerToMarker.Remove(__instance);
+                LockerRestrictions.Unregister(__instance);
+                return;
             }
-            else
+
+            LockerToMarker[__instance] = suit_marker;
+
+            // Only mirror restrictions for customised variants (atmo +
+            // oxygen mask). Lead Suit / Jet Suit lockers stay as vanilla.
+            if (suit_marker.GetComponent<CheckpointAccessControl>() != null)
             {
-                LockerToMarker[__instance] = suit_marker;
+                LockerRestrictions.Register(__instance);
+                LockerRestrictions.SyncFromMarker(__instance, suit_marker);
             }
         }
 
         // Belt-and-suspenders: drop the entry when the locker is
-        // destroyed so the dictionary doesn't leak dead references.
+        // destroyed so the dictionary doesn't leak dead references and
+        // the Grid doesn't keep stale restrictions on the locker's
+        // former cells.
         [HarmonyPatch(typeof(SuitLocker), "OnCleanUp")]
         [HarmonyPostfix]
         private static void OnCleanUp_Postfix(SuitLocker __instance)
         {
             LockerToMarker.Remove(__instance);
+            LockerRestrictions.Unregister(__instance);
         }
     }
 
@@ -94,10 +105,6 @@ namespace BetterCheckpoints.Patches
             var locker = __instance.GetComponent<SuitLocker>();
             if (locker == null) return;
 
-            // urgentChore and idleChore are private fields on the
-            // ReturnSuitWorkable instance. They're freshly assigned by
-            // the original method we just ran the postfix on, so they
-            // exist for the lifetime of this workable.
             var urgent = AccessTools.Field(typeof(SuitLocker.ReturnSuitWorkable), "urgentChore")
                 .GetValue(__instance) as Chore;
             var idle = AccessTools.Field(typeof(SuitLocker.ReturnSuitWorkable), "idleChore")
@@ -106,20 +113,11 @@ namespace BetterCheckpoints.Patches
             idle?.AddPrecondition(BetterCheckpointsAccessPrecondition, locker);
         }
 
-        // Precondition body: return false to reject this dupe / chore
-        // pair (chore won't be offered), true to let the chore proceed
-        // through vanilla logic.
-        //
-        // Reject only when the locker is on a customised checkpoint
-        // (has CheckpointAccessControl on its paired SuitMarker) AND
-        // either:
-        //   - the dupe is Bionic and the mod option is set to Bypass, or
-        //   - the dupe's per-dupe row on the side screen is set to Block
-        //     (vanilla AccessControl.Permission.Neither).
-        //
-        // Lockers paired with non-customised markers (Lead Suit, Jet
-        // Suit) — and unpaired lockers — always allow the chore: the
-        // mod's option only governs the suit types we customise.
+        // Reject Bionic-in-Bypass and per-dupe Block at the chore level.
+        // The Grid restriction mirror in LockerRestrictions already
+        // prevents the dupe from pathing to the locker, but rejecting
+        // the chore here too prevents vanilla from queuing useless work
+        // and keeps the errand panel honest.
         private static bool AllowChore(ref Chore.Precondition.Context context, object data)
         {
             var locker = data as SuitLocker;
@@ -129,29 +127,21 @@ namespace BetterCheckpoints.Patches
             if (marker == null) return true;
 
             var cac = marker.GetComponent<CheckpointAccessControl>();
-            if (cac == null) return true; // non-customised variant, no Better Checkpoints rules apply
+            if (cac == null) return true;
 
             var dupeGo = context.consumerState.gameObject;
             if (dupeGo == null) return true;
 
-            // Bionic-in-Bypass: the chore is suppressed wholesale. This
-            // is what makes Bionics in Bypass mode keep their atmo
-            // suit on as the user requested.
             if (dupeGo.HasTag(GameTags.Minions.Models.Bionic) &&
                 !BetterCheckpointsOptions.IsBionicsDefault)
             {
                 return false;
             }
 
-            // Per-dupe Block on the side screen sets vanilla
-            // AccessControl.Permission.Neither for that dupe's proxy.
-            // If the dupe is blocked from this checkpoint, they
-            // shouldn't be using the lockers attached to it either.
             var ac = marker.GetComponent<AccessControl>();
             if (ac != null)
             {
-                var identity = dupeGo.GetComponent<MinionIdentity>();
-                var proxy = identity?.assignableProxy?.Get();
+                var proxy = dupeGo.GetComponent<MinionIdentity>()?.assignableProxy?.Get();
                 if (proxy != null &&
                     ac.GetSetPermission(proxy) == AccessControl.Permission.Neither)
                 {
